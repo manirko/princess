@@ -136,6 +136,12 @@ body {
   font-size:13px; font-weight:600; color:var(--accent);
   background:rgba(184,151,106,0.12); padding:6px 12px; border-radius:20px;
 }
+.study-timer-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding:0 4px; }
+.study-timer { font-size:12px; color:var(--text-ter); font-variant-numeric:tabular-nums; }
+.study-rec { font-size:11px; color:var(--text-ter); }
+.study-rec strong { color:var(--accent); font-weight:600; }
+.break-hint { background:var(--bg); border:0.5px solid var(--sep); border-radius:var(--radius-sm); padding:12px 16px; margin-top:16px; font-size:13px; color:var(--text-sec); line-height:1.5; text-align:left; }
+.break-hint strong { color:var(--text); }
 .study-progress { height:3px; background:var(--sep); border-radius:2px; margin-bottom:16px; }
 .study-progress-bar { height:100%; background:var(--accent); border-radius:2px; transition:width 0.3s; }
 
@@ -310,6 +316,10 @@ body {
     </div>
     <span class="study-counter" id="study-counter"></span>
   </div>
+  <div class="study-timer-bar">
+    <span class="study-timer" id="study-timer">0:00</span>
+    <span class="study-rec" id="study-rec"></span>
+  </div>
   <div class="study-progress"><div class="study-progress-bar" id="study-pbar"></div></div>
   <div class="card-container" onclick="flipCard()">
     <div class="card-inner" id="card-inner">
@@ -338,6 +348,7 @@ body {
     <h2>Перерыв!</h2>
     <div class="break-timer" id="break-timer">00:00</div>
     <p>Мозг сейчас переносит знания в долгосрочную память. Как Гегель говорил: «сова Минервы вылетает в сумерки» — мудрость приходит, когда расслабляешься.</p>
+    <div class="break-hint" id="break-hint" style="display:none"></div>
     <button class="btn btn-secondary" onclick="showDashboard()">На главную</button>
   </div>
 </div>
@@ -697,6 +708,11 @@ const ONB_DEEP_S1 = [
     h: 'Принцессософия',
     sub: 'Ты ближе к экзамену, чем думаешь',
     body: '<p>Ты уже прошла несколько сессий. Это значит, что часть карточек уже в <span class="highlight">«мастер»-зоне</span> — ты их помнишь стабильно.</p><p>Интервальное повторение устроено так: чем дальше ты продвигаешься, тем <span class="highlight">меньше</span> карточек нужно повторять. Самые сложные — всё ещё возвращаются, но лёгкие уже не отвлекают.</p><p>К экзамену ты будешь знать не «примерно» — ты будешь знать <span class="highlight">уверенно</span>, потому что каждый факт прошёл минимум 4 проверки.</p><p style="font-size:14px;margin-top:8px;color:var(--text-ter)">Доверяй процессу. Алгоритм не ошибается.</p>'
+  },
+  {
+    h: 'Принцессософия',
+    sub: '20 минут — и перерыв. Это не лень, это наука.',
+    body: '<p>Исследования внимания показали: мозг <span class="highlight">эффективно фокусируется 20–25 минут</span> подряд (Oakley & Sejnowski, 2018). Дальше качество запоминания падает.</p><p>Перерывы — не пауза от учёбы. Это часть учёбы. Во время перерыва гиппокамп <span class="highlight">переписывает информацию</span> из рабочей памяти в долгосрочную (Tambini et al., 2010, Neuron).</p><p>Поэтому: учи 20 минут, поставь таймер на перерыв, вернись когда приложение скажет.</p><p style="font-size:14px;margin-top:8px;color:var(--text-ter)">Сон — самый мощный перерыв. Перед сном одна сессия = золото для памяти.</p>'
   }
 ];
 
@@ -876,6 +892,42 @@ let studyTotal = 0;
 let isFlipped = false;
 let currentCard = null;
 let filterTicket = null;
+let studyStartTime = null;
+let studyTimerInterval = null;
+
+// Research-backed study duration recommendations:
+// - Oakley & Sejnowski (2018, "Learning How to Learn"): focused attention degrades after 25 min
+// - Ariga & Lleras (2011, Cognition): brief diversions restore focus
+// - Pomodoro: 25 min work / 5 min break is optimal for sustained attention
+// Recommendation: 20 min sessions for flashcards (shorter than reading)
+const RECOMMENDED_SESSION_MIN = 20;
+
+function startStudyTimer() {
+  studyStartTime = Date.now();
+  clearInterval(studyTimerInterval);
+  studyTimerInterval = setInterval(updateStudyTimer, 1000);
+  updateStudyTimer();
+}
+
+function updateStudyTimer() {
+  if (!studyStartTime) return;
+  const elapsed = Math.floor((Date.now() - studyStartTime) / 1000);
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  document.getElementById('study-timer').textContent = m + ':' + String(s).padStart(2, '0');
+
+  const rec = document.getElementById('study-rec');
+  if (m < RECOMMENDED_SESSION_MIN) {
+    rec.innerHTML = 'рекомендуется <strong>' + RECOMMENDED_SESSION_MIN + ' мин</strong>';
+  } else {
+    rec.innerHTML = '<strong>можно сделать перерыв</strong>';
+    rec.style.color = 'var(--accent)';
+  }
+}
+
+function stopStudyTimer() {
+  clearInterval(studyTimerInterval);
+}
 
 function startStudy(ticketNum) {
   clearInterval(dashTimer);
@@ -902,17 +954,45 @@ function startStudy(ticketNum) {
     return;
   }
   
-  // Shuffle cards with same level for interleaving
-  for (let i = pool.length - 1; i > 0; i--) {
-    if (getLevel(pool[i].id) === getLevel(pool[i-1].id) && Math.random() > 0.5) {
-      [pool[i], pool[i-1]] = [pool[i-1], pool[i]];
+  // Interleaved shuffle — Kornell & Bjork (2008): interleaving topics
+  // improves learning by 43% vs blocked practice.
+  // Strategy: group by ticket, then deal cards round-robin across tickets
+  // so no two cards from the same ticket appear consecutively.
+  const byTicket = {};
+  pool.forEach(c => { (byTicket[c.t] = byTicket[c.t] || []).push(c); });
+  // Shuffle within each ticket group
+  Object.values(byTicket).forEach(arr => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
     }
+  });
+  // Shuffle the ticket order
+  const ticketKeys = Object.keys(byTicket);
+  for (let i = ticketKeys.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [ticketKeys[i], ticketKeys[j]] = [ticketKeys[j], ticketKeys[i]];
+  }
+  // Round-robin deal: take one card from each ticket in rotation
+  pool.length = 0;
+  let hasMore = true;
+  let round = 0;
+  while (hasMore) {
+    hasMore = false;
+    for (const k of ticketKeys) {
+      if (round < byTicket[k].length) {
+        pool.push(byTicket[k][round]);
+        hasMore = true;
+      }
+    }
+    round++;
   }
   
   studyQueue = pool;
   studyIndex = 0;
   studyTotal = pool.length;
   showScreen('study');
+  startStudyTimer();
   showCard();
 }
 
@@ -957,26 +1037,8 @@ function showCard() {
   document.getElementById('rating').classList.remove('visible');
 }
 
-// Haptic engine — vibration + audio click for iOS
-const _hCtx = (function() {
-  try { return new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return null; }
-})();
-
-function _hClick(freq, dur, gain) {
-  if (!_hCtx) return;
-  try {
-    const o = _hCtx.createOscillator();
-    const g = _hCtx.createGain();
-    o.connect(g); g.connect(_hCtx.destination);
-    o.frequency.value = freq;
-    g.gain.setValueAtTime(gain, _hCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, _hCtx.currentTime + dur);
-    o.start(); o.stop(_hCtx.currentTime + dur);
-  } catch(e) {}
-}
-
+// Haptic — vibration only (no audio)
 function haptic(style) {
-  // Vibration API (Android + some devices)
   try {
     if (navigator.vibrate) {
       const patterns = {
@@ -989,16 +1051,6 @@ function haptic(style) {
       navigator.vibrate(patterns[style] || [8]);
     }
   } catch(e) {}
-  // Audio micro-click (iOS fallback — subtle tactile feel)
-  const clicks = {
-    light: [4000, 0.015, 0.08],
-    medium: [2800, 0.025, 0.1],
-    success: [4800, 0.02, 0.06],
-    celebrate: [3200, 0.04, 0.12],
-    fail: [1800, 0.03, 0.07]
-  };
-  const c = clicks[style] || clicks.light;
-  _hClick(c[0], c[1], c[2]);
 }
 
 function flipCard() {
@@ -1071,8 +1123,25 @@ let breakTimer = null;
 
 function showBreak() {
   clearInterval(breakTimer);
+  stopStudyTimer();
   showScreen('break-screen');
   updateBreakTimer();
+
+  // Show timer hint for breaks > 5 min
+  const hint = document.getElementById('break-hint');
+  const next = getNextReviewTime();
+  if (next) {
+    const waitMin = Math.ceil((next - Date.now()) / 60000);
+    if (waitMin >= 5) {
+      hint.style.display = 'block';
+      hint.innerHTML = '<strong>Поставь таймер на ' + waitMin + ' мин</strong> — не пропусти момент, когда карточки будут готовы к повтору. Именно повторение на грани забывания даёт максимальный эффект (Bjork, 1994).';
+    } else {
+      hint.style.display = 'block';
+      hint.innerHTML = 'Подожди ' + waitMin + ' мин — скоро карточки будут готовы к повтору.';
+    }
+  } else {
+    hint.style.display = 'none';
+  }
   breakTimer = setInterval(() => {
     const overdue = filterTicket
       ? CARDS.filter(c => c.t === filterTicket && getLevel(c.id) < 7 && getNext(c.id) <= Date.now())
