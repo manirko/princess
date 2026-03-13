@@ -348,7 +348,7 @@ body {
       <div class="card-back">
         <span class="card-type" id="card-type-back"></span>
         <div class="card-a" id="card-a"></div>
-        <button class="elab-btn" id="elab-btn" onclick="showElab(event)">Подумай: почему?</button>
+        <button class="elab-btn" id="elab-btn" onclick="showElab(event)">💭 Копнуть глубже</button>
         <div class="elab-prompt" id="elab-prompt"></div>
       </div>
     </div>
@@ -1087,50 +1087,123 @@ function showCard() {
   document.getElementById('elab-prompt').classList.remove('show');
   document.getElementById('elab-btn').style.display = currentCard.tp === 'link' ? 'none' : 'block';
 
-  // Context-aware elaboration (Dunlosky et al. 2013: elaboration works
-  // when the question forces connecting THIS fact to prior knowledge)
+  // ── ELABORATION ENGINE ──
+  // 6 techniques from narrative pedagogy research:
+  // 1. Problem-first (situated learning, Lave & Wenger) — what problem did this solve?
+  // 2. Protagonist perspective (epistemic positioning) — imagine YOU are...
+  // 3. Analogy bridge (structure-mapping, Gentner & Holyoak) — connect to life
+  // 4. Curiosity gap (Loewenstein 1994) — counterfactual "what if"
+  // 5. Dialogue mode (social constructivism) — explain to someone
+  // 6. Historical grounding (situated context) — why THIS moment?
+
   const topic = currentCard.tt;
-  const q = currentCard.q;
   const a = currentCard.a;
-
-  // Extract key terms from answer for dynamic questions
   const boldTerms = (a.match(/\*\*([^*]+)\*\*/g) || []).map(s => s.replace(/\*\*/g, ''));
-  const firstBold = boldTerms[0] || '';
-  const secondBold = boldTerms[1] || '';
+  const b1 = boldTerms[0] || '';
+  const b2 = boldTerms[1] || '';
+  const tNum = currentCard.t;
 
-  // Skeleton-specific templates (plan cards)
-  const skelabTemplates = [
-    'Если бы экзаменатор перебил на третьем пункте — что точно надо было успеть сказать?',
-    'Объясни план «' + topic + '» за 20 секунд, будто подруга спросила перед экзаменом.',
-    'Какой пункт в «' + topic + '» тебе сложнее всего — почему?',
-    'Закрой ответ и перескажи план по памяти. Что забылось?',
-    'Какой пункт из этого плана связан с другим билетом? Каким?',
-    'Представь, что ты начинаешь ответ не с первого пункта, а с последнего. Что изменится?',
-    'Если бы надо было убрать один пункт — какой и почему?',
+  // Ticket-specific context maps: what era, who, what tension
+  const ticketContext = {
+    1: {who:'философов', era:'', tension:'чем философия отличается от религии и науки'},
+    2: {who:'мудрецов Индии', era:'за 1500 лет до н.э.', tension:'как перестать страдать'},
+    3: {who:'китайских мыслителей', era:'2500 лет назад', tension:'как навести порядок в обществе'},
+    5: {who:'досократиков', era:'в Древней Греции', tension:'из чего всё состоит'},
+    6: {who:'Сократа', era:'в Афинах V века', tension:'что значит «знать»'},
+    7: {who:'Платона', era:'после казни учителя', tension:'реален ли видимый мир'},
+    8: {who:'Аристотеля', era:'в противовес Платону', tension:'как познать мир через наблюдение'},
+    9: {who:'стоиков и эпикурейцев', era:'когда рухнул полис', tension:'как быть счастливым в хаосе'},
+    10: {who:'Плотина', era:'на закате античности', tension:'как вернуться к Единому'},
+    15: {who:'схоластов', era:'в средневековых монастырях', tension:'совместимы ли вера и разум'},
+    16: {who:'мыслителей Ренессанса', era:'при переоткрытии античности', tension:'что может человек'},
+    19: {who:'рационалистов', era:'в эпоху научной революции', tension:'можно ли познать мир чистым разумом'},
+    20: {who:'эмпириков', era:'в Англии XVII–XVIII вв.', tension:'всё ли знание из опыта'},
+    21: {who:'Канта', era:'после Юма', tension:'как возможно достоверное знание'},
+    22: {who:'Гегеля', era:'в эпоху Наполеона', tension:'движется ли история по логике'},
+    23: {who:'Фихте и Шеллинга', era:'между Кантом и Гегелем', tension:'что первично — Я или природа'},
+    24: {who:'Маркса', era:'в разгар индустриализации', tension:'почему одни богаты а другие нет'},
+    26: {who:'Ницше и Бергсона', era:'в кризисе рационализма', tension:'схватывает ли разум жизнь'},
+    27: {who:'экзистенциалистов', era:'после мировых войн', tension:'имеет ли жизнь смысл если Бог мёртв'},
+    30: {who:'онтологов', era:'', tension:'что значит «существовать»'},
+    31: {who:'гносеологов', era:'', tension:'можем ли мы знать что-то наверняка'},
+    32: {who:'диалектиков', era:'', tension:'как противоположности порождают новое'},
+    33: {who:'философов сознания', era:'', tension:'что такое «я» и где оно'},
+    34: {who:'философов науки', era:'', tension:'чем наука отличается от не-науки'},
+    35: {who:'социальных философов', era:'', tension:'как устроено справедливое общество'},
+    36: {who:'антропологов', era:'', tension:'что делает человека человеком'},
+    37: {who:'философов истории', era:'', tension:'есть ли у истории направление'},
+    38: {who:'философов культуры', era:'', tension:'что такое цивилизация и куда она идёт'},
+    39: {who:'современных мыслителей', era:'', tension:'выживет ли человечество'},
+    40: {who:'философов техники', era:'', tension:'техника освобождает или порабощает'},
+    41: {who:'философов религии', era:'', tension:'нужна ли вера разумному человеку'},
+    42: {who:'антропологов', era:'', tension:'кто я и зачем я здесь'},
+  };
+
+  const ctx = ticketContext[tNum] || {who:'философов', era:'', tension:'как устроен мир'};
+
+  // ── SKELETON QUESTIONS (plan cards) ──
+  const skelQ = [
+    // Problem-first
+    'Какую проблему пытались решить ' + ctx.who + '? Держи её в голове — план ответа станет логичнее.',
+    // Protagonist
+    'Ты на экзамене, тебя перебили после первого пункта. Какую одну мысль ты точно должна была успеть сказать?',
+    // Curiosity gap
+    'Если убрать из этого плана последний пункт — ответ станет неполным? Или его вообще можно выкинуть?',
+    // Dialogue
+    'Подруга спрашивает: «А зачем мне вообще знать про ' + topic.toLowerCase() + '?» Что ответишь за 15 секунд?',
+    // Historical grounding
+    ctx.era ? 'Почему эти вопросы возникли именно ' + ctx.era + '? Что происходило вокруг?' : 'Что заставило людей задуматься об этом — какой кризис или вопрос?',
+    // Analogy
+    'Можешь пересказать этот план как историю? «Сначала люди задумались о..., потом поняли что..., и в итоге...»',
+    // Generation effect
+    'Закрой ответ. Назови пункты по памяти. Потом открой — что забылось?',
   ];
 
-  // Atom-specific templates — use card content dynamically
-  const atomTemplates = [
-    'Как бы ты объяснила «' + topic + '» человеку, который ничего не знает о философии?',
-    'С каким другим философом или идеей из другого билета это связано?',
-    firstBold ? 'Почему ' + firstBold + ' — это ключевое понятие здесь, а не что-то другое?' : 'Что здесь главное понятие и почему именно оно?',
-    'Если бы тебе задали этот вопрос устно — какое первое предложение ты скажешь?',
-    secondBold ? 'В чём разница между ' + firstBold + ' и ' + secondBold + '? Почему это важно?' : 'Придумай свою аналогию для этого понятия.',
-    'Что бы сказал автор этой идеи про современный мир?',
-    'С чем из твоей жизни это можно сравнить — конкретный пример?',
-    'Закрой ответ. Перескажи своими словами. Потом сравни — что упустила?',
-    'Почему экзаменатор может спросить именно это? Что он хочет услышать?',
-    'Какой контраргумент можно привести против этой идеи?',
-    firstBold ? 'Если убрать ' + firstBold + ' из ответа — он развалится? Почему?' : 'Что будет, если убрать главную мысль из ответа?',
-    'Как эта идея из «' + topic + '» повлияла на то, что было после?',
-  ];
+  // ── ATOM QUESTIONS (fact cards) — 6 technique categories ──
+  const atomQ = [];
 
-  const pool = currentCard.tp === 'skeleton' ? skelabTemplates : atomTemplates;
-  // Pick 1 random, but avoid showing same question twice in a row
-  let idx = Math.floor(Math.random() * pool.length);
-  const lastElab = window._lastElabIdx || -1;
-  if (idx === lastElab && pool.length > 1) idx = (idx + 1) % pool.length;
-  window._lastElabIdx = idx;
+  // 1. PROBLEM-FIRST (situated learning): what problem does this solve?
+  atomQ.push('Главный вопрос ' + ctx.who + ' был: «' + ctx.tension + '». Как этот факт помогает на него ответить?');
+  if (b1) atomQ.push('Зачем понадобилось понятие «' + b1 + '»? Какую проблему оно решает?');
+
+  // 2. PROTAGONIST PERSPECTIVE: imagine you ARE there
+  atomQ.push('Представь: ты живёшь ' + (ctx.era || 'в ту эпоху') + '. Почему эта идея — революция, а не очевидность?');
+  if (b1) atomQ.push('Ты — студент ' + ctx.who + '. Тебе только что объяснили «' + b1 + '». Какой вопрос ты задашь первым?');
+
+  // 3. ANALOGY BRIDGE: connect to your life
+  atomQ.push('С чем из своей жизни ты можешь сравнить эту идею? Придумай конкретный пример.');
+  atomQ.push('Если бы это была сцена из фильма — что бы происходило на экране?');
+
+  // 4. CURIOSITY GAP: counterfactual
+  if (b1 && b2) {
+    atomQ.push('Что если ' + b1 + ' и ' + b2 + ' — это одно и то же? Почему нет?');
+  }
+  atomQ.push('Что если бы этой идеи не существовало — как бы изменилась философия после?');
+  atomQ.push('Какой главный аргумент ПРОТИВ этой идеи? Кто из философов был бы не согласен?');
+
+  // 5. DIALOGUE MODE: explain to someone
+  atomQ.push('Ты объясняешь это однокласснице, которая не читала учебник. Первое предложение?');
+  atomQ.push('Экзаменатор спрашивает: «А поконкретнее?» Что ты добавишь к этому ответу?');
+
+  // 6. HISTORICAL GROUNDING: why this moment?
+  if (ctx.era) atomQ.push('Почему именно ' + ctx.era + '? Что произошло, чтобы люди начали так думать?');
+  atomQ.push('Эта идея — ответ или вопрос? Она закрыла дискуссию или открыла новую?');
+
+  // 7. GENERATION + RETRIEVAL
+  atomQ.push('Закрой ответ. Перескажи за 20 секунд. Открой — что упустила?');
+  if (b1) atomQ.push('Не подглядывая: дай определение «' + b1 + '» своими словами.');
+
+  const pool = currentCard.tp === 'skeleton' ? skelQ : atomQ;
+  // Weighted random: avoid repeats in last 3
+  if (!window._elabHistory) window._elabHistory = [];
+  let idx;
+  let attempts = 0;
+  do {
+    idx = Math.floor(Math.random() * pool.length);
+    attempts++;
+  } while (window._elabHistory.includes(idx) && attempts < 10 && pool.length > 3);
+  window._elabHistory.push(idx);
+  if (window._elabHistory.length > 3) window._elabHistory.shift();
   document.getElementById('elab-prompt').textContent = pool[idx];
 }
 
