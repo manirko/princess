@@ -255,6 +255,17 @@ body {
 .gp-explain-text p { margin-bottom:6px; }
 .gp-explain-text p:last-child { margin-bottom:0; }
 .gp-explain-text strong { color:var(--text); font-weight:600; }
+
+/* === CONFETTI === */
+.confetti-container { position:fixed; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:999; overflow:hidden; }
+.confetti-piece {
+  position:absolute; width:10px; height:10px; opacity:0;
+  animation:confetti-fall 2.5s ease-out forwards;
+}
+@keyframes confetti-fall {
+  0% { transform:translateY(-20px) rotate(0deg) scale(1); opacity:1; }
+  100% { transform:translateY(100vh) rotate(720deg) scale(0.3); opacity:0; }
+}
 </style>
 </head>
 <body>
@@ -273,7 +284,7 @@ body {
 <div class="screen" id="dashboard">
   <div class="dash-header">
     <h1>Принцессософия</h1>
-    <p>Мировая философия · 32 билета · до понедельника</p>
+    <p id="dash-subtitle">Мировая философия · 32 билета · до понедельника</p>
   </div>
   <div class="progress-wrap"><div class="progress-bar" id="dash-progress"></div></div>
   <div class="stats">
@@ -760,14 +771,35 @@ function showDashboard() {
   updateGlobalProgress();
 }
 
+function getDashSubtitle() {
+  const done = countDoneTickets();
+  const pct = getMasteryPercent();
+  // Exam date: next Monday
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0=Sun
+  const daysToMon = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
+
+  if (done >= 32) return 'Все 32 билета выучены. Ты готова.';
+  if (pct >= 80) return 'Ты знаешь ' + pct + '% материала — это твёрдая пятёрка';
+  if (pct >= 60) return 'Уже ' + pct + '% — уверенная четвёрка';
+  if (pct >= 40) return pct + '% пройдено — больше половины пути';
+  if (pct >= 20) return 'Уже ' + pct + '% — разгоняемся';
+
+  if (daysToMon === 0) return 'Сегодня экзамен — финальный повтор';
+  if (daysToMon === 1) return 'Завтра экзамен — последний рывок';
+  if (daysToMon <= 3) return 'Осталось ' + daysToMon + ' дн. · 32 билета · ты справишься';
+  return 'Мировая философия · 32 билета · до понедельника';
+}
+
 function renderDashboard() {
   const done = countDoneTickets();
   const overdue = getOverdue();
-  
+
   document.getElementById('st-done').textContent = done;
   document.getElementById('st-due').textContent = overdue.length;
   document.getElementById('st-streak').textContent = state.s;
   document.getElementById('dash-progress').style.width = (done / 32 * 100) + '%';
+  document.getElementById('dash-subtitle').textContent = getDashSubtitle();
   
   const btn = document.getElementById('start-btn');
   const timer = document.getElementById('dash-timer');
@@ -925,9 +957,54 @@ function showCard() {
   document.getElementById('rating').classList.remove('visible');
 }
 
+// Haptic engine — vibration + audio click for iOS
+const _hCtx = (function() {
+  try { return new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return null; }
+})();
+
+function _hClick(freq, dur, gain) {
+  if (!_hCtx) return;
+  try {
+    const o = _hCtx.createOscillator();
+    const g = _hCtx.createGain();
+    o.connect(g); g.connect(_hCtx.destination);
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(gain, _hCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, _hCtx.currentTime + dur);
+    o.start(); o.stop(_hCtx.currentTime + dur);
+  } catch(e) {}
+}
+
+function haptic(style) {
+  // Vibration API (Android + some devices)
+  try {
+    if (navigator.vibrate) {
+      const patterns = {
+        light: [8],
+        medium: [12],
+        success: [8, 50, 12, 40, 6],
+        celebrate: [10, 30, 10, 30, 15, 60, 20],
+        fail: [15, 30, 8]
+      };
+      navigator.vibrate(patterns[style] || [8]);
+    }
+  } catch(e) {}
+  // Audio micro-click (iOS fallback — subtle tactile feel)
+  const clicks = {
+    light: [4000, 0.015, 0.08],
+    medium: [2800, 0.025, 0.1],
+    success: [4800, 0.02, 0.06],
+    celebrate: [3200, 0.04, 0.12],
+    fail: [1800, 0.03, 0.07]
+  };
+  const c = clicks[style] || clicks.light;
+  _hClick(c[0], c[1], c[2]);
+}
+
 function flipCard() {
   if (isFlipped) return;
   isFlipped = true;
+  haptic('light');
   document.getElementById('card-inner').classList.add('flipped');
   setTimeout(() => {
     document.getElementById('rating').classList.add('visible');
@@ -936,9 +1013,12 @@ function flipCard() {
 
 function rate(r) {
   if (!currentCard) return;
+  haptic(r === 'good' ? 'success' : r === 'fail' ? 'fail' : 'medium');
   const id = currentCard.id;
   let [level, _] = state.p[id] || [0, 0];
-  
+  const tNum = currentCard.t;
+  const wasDone = isTicketDone(tNum);
+
   if (r === 'fail') {
     state.p[id] = [0, Date.now()];
     state.s = 0;
@@ -949,13 +1029,41 @@ function rate(r) {
     state.p[id] = [level, level >= 7 ? Infinity : Date.now() + INTERVALS[level]];
     state.s++;
   }
-  
+
   state.r++;
   saveState();
   updateGlobalProgress();
 
+  // Confetti when ticket just became fully learned
+  if (!wasDone && isTicketDone(tNum)) {
+    showConfetti();
+  }
+
   studyIndex++;
   showCard();
+}
+
+// ===== CONFETTI =====
+function showConfetti() {
+  haptic('celebrate');
+  const container = document.createElement('div');
+  container.className = 'confetti-container';
+  document.body.appendChild(container);
+  const colors = ['#B8976A', '#8FA688', '#C4888B', '#D4A76A', '#E8D5B7', '#A3C4A0'];
+  for (let i = 0; i < 40; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    const size = 6 + Math.random() * 8;
+    piece.style.cssText =
+      'left:' + (Math.random() * 100) + '%;' +
+      'width:' + size + 'px;height:' + (size * (0.4 + Math.random() * 0.6)) + 'px;' +
+      'background:' + colors[Math.floor(Math.random() * colors.length)] + ';' +
+      'border-radius:' + (Math.random() > 0.5 ? '50%' : '2px') + ';' +
+      'animation-delay:' + (Math.random() * 0.6) + 's;' +
+      'animation-duration:' + (1.8 + Math.random() * 1.2) + 's;';
+    container.appendChild(piece);
+  }
+  setTimeout(() => container.remove(), 3500);
 }
 
 // ===== BREAK =====
