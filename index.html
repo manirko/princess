@@ -574,7 +574,7 @@ function getNextReviewTime() {
 
 function isTicketDone(tNum) {
   const tCards = CARDS.filter(c => c.t === tNum);
-  return tCards.every(c => getLevel(c.id) >= 6);
+  return tCards.every(c => getLevel(c.id) >= 7);
 }
 
 function countDoneTickets() {
@@ -591,12 +591,10 @@ function updateGlobalProgress() {
   const gp = document.getElementById('global-progress');
   if (!state.o) { gp.style.display = 'none'; return; }
   gp.style.display = 'block';
-  const mastered = CARDS.filter(c => getLevel(c.id) >= 7).length;
-  const inProgress = CARDS.filter(c => { const l = getLevel(c.id); return l > 0 && l < 7; }).length;
-  const pct = Math.round((mastered / CARDS.length) * 100);
-  const label = mastered > 0 ? mastered + ' из ' + CARDS.length + ' выучено' : inProgress + ' из ' + CARDS.length + ' в процессе';
-  document.getElementById('gp-label').textContent = label;
-  document.getElementById('gp-bar').style.width = Math.round(((mastered + inProgress * 0.3) / CARDS.length) * 100) + '%';
+  const done = countDoneTickets();
+  const pct = Math.round(done / 32 * 100);
+  document.getElementById('gp-label').textContent = done + ' / 32 готово к экзамену';
+  document.getElementById('gp-bar').style.width = getMasteryPercent() + '%';
   document.getElementById('gp-pct').textContent = pct + '%';
 }
 
