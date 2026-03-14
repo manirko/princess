@@ -6,8 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Принцессософия">
-<meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1C1917" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#FAF7F2">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,25 +33,6 @@
   --radius: 16px;
   --radius-sm: 12px;
   --font-serif: 'Cormorant Garamond', 'Georgia', serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1C1917;
-    --bg-card: #272220;
-    --text: #E8E0D8;
-    --text-sec: rgba(232,224,216,0.6);
-    --text-ter: rgba(232,224,216,0.3);
-    --sep: rgba(232,224,216,0.10);
-    --accent: #C9A96E;
-    --green: #9DB896;
-    --red: #D49598;
-    --orange: #DEB87A;
-    --btn-text: #1C1917;
-    --overlay: rgba(0,0,0,0.6);
-    --shadow: 0 1px 4px rgba(0,0,0,0.2);
-    --shadow-lg: 0 4px 16px rgba(0,0,0,0.25);
-  }
-  html { color-scheme: dark; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -188,14 +168,6 @@ body {
   transform-style:preserve-3d;
 }
 .card-inner.flipped { transform:rotateY(180deg); }
-/* Card entrance animation */
-.card-inner.entering {
-  animation: cardEnter 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
-}
-@keyframes cardEnter {
-  from { opacity:0; transform:translateY(12px); }
-  to { opacity:1; transform:translateY(0); }
-}
 /* Swipe visual feedback */
 .card-inner.swiping { transition:none; }
 .card-inner.swipe-exit-left {
@@ -1473,20 +1445,13 @@ function updateBreakTimer() {
   document.getElementById('break-timer').textContent = formatTime(next - Date.now());
 }
 
-// ===== CARD ENTRANCE ANIMATION =====
+// ===== CARD CLEANUP ON SHOW =====
 (function() {
   const origShowCard = showCard;
   showCard = function() {
     const inner = document.getElementById('card-inner');
-    inner.classList.remove('entering', 'swipe-exit-left', 'swipe-exit-right');
+    inner.classList.remove('swipe-exit-left', 'swipe-exit-right');
     origShowCard();
-    // Trigger reflow then add entering class
-    void inner.offsetWidth;
-    inner.classList.add('entering');
-    inner.addEventListener('animationend', function handler() {
-      inner.classList.remove('entering');
-      inner.removeEventListener('animationend', handler);
-    });
   };
 })();
 
