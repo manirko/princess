@@ -1,8 +1,11 @@
 {
   "name": "Принцессософия",
   "short_name": "Σοφία",
-  "start_url": ".",
+  "description": "Философия за 3 дня — интервальные карточки",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#FAF7F2",
   "theme_color": "#B8976A",
   "icons": [

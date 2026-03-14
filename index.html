@@ -1533,6 +1533,11 @@ function updateFooter() {
   if (el) el.textContent = FOOTER_PHRASES[footerIdx++ % FOOTER_PHRASES.length];
 }
 
+// ===== SERVICE WORKER =====
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
 // ===== INIT =====
 updateFooter();
 initOnboarding();
