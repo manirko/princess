@@ -363,7 +363,7 @@ body {
   <div class="ticket-list" id="ticket-list">
     <h3>Билеты</h3>
   </div>
-  <div class="app-footer">सब्बे सङ्खारा अनिच्चा · всё непостоянно — кроме знаний</div>
+  <div class="app-footer" id="app-footer"></div>
 </div>
 
 <!-- STUDY -->
@@ -850,6 +850,7 @@ function showDashboard() {
   showScreen('dashboard');
   startDashTimer();
   updateGlobalProgress();
+  if (typeof updateFooter === 'function') updateFooter();
 }
 
 function getDashSubtitle() {
@@ -1525,7 +1526,27 @@ function updateBreakTimer() {
   }, { passive: true });
 })();
 
+// ===== FOOTER PHRASES =====
+const FOOTER_PHRASES = [
+  'सब्बे सङ्खारा अनिच्चा · всё непостоянно — кроме знаний',
+  'अनिच्चा · всё проходит — но не то, что ты выучила',
+  'अनिच्चा · непостоянно всё, кроме привычки думать',
+  'सब्बे सङ्खारा अनिच्चा · и экзамен тоже пройдёт',
+  'अनिच्चा · даже страх перед экзаменом непостоянен',
+  'सब्बे सङ्खारा अनिच्चा · но каждый повтор оставляет след',
+  'अनिच्चा · всё меняется — ты тоже, с каждой карточкой',
+  'सब्बे सङ्खारा अनिच्चा · знание — единственное, что растёт, когда делишься',
+  'अनिच्चा · ничто не вечно, но нейронные связи крепнут',
+  'सब्बे सङ्खारा अनिच्चा · непостоянство — не проблема, а метод'
+];
+let footerIdx = Math.floor(Math.random() * FOOTER_PHRASES.length);
+function updateFooter() {
+  const el = document.getElementById('app-footer');
+  if (el) el.textContent = FOOTER_PHRASES[footerIdx++ % FOOTER_PHRASES.length];
+}
+
 // ===== INIT =====
+updateFooter();
 initOnboarding();
 </script>
 </body>
